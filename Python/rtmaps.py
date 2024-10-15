@@ -123,7 +123,7 @@ class RTMapsWrapper(Singleton):
         self._command_log.clear()
         self.lib.maps_reset()
 
-    def _parse(self, command):
+    def parse(self, command):
         response = self.lib.maps_parse(command.encode('utf-8'))
         if response != 0:
             raise RTMapsException("Error while parsing command '{}'".format(command))
@@ -132,14 +132,14 @@ class RTMapsWrapper(Singleton):
 
     def register_package(self, package_name, package_folder=""):
         package_path = os.path.join(package_folder,  package_name)
-        self._parse("register <<{}>>".format(package_path))
+        self.parse("register <<{}>>".format(package_path))
 
     def unregister_package(self, package_name):
-        self._parse("unregister <<{}>>".format(package_name))
+        self.parse("unregister <<{}>>".format(package_name))
 
     def register_standard_package(self, package_name, package_sub_folder=""):
         package_path = os.path.join(self.rtmaps_install_path, "packages", package_sub_folder, package_name)
-        self._parse("register <<{}>>".format(package_path))
+        self.parse("register <<{}>>".format(package_path))
 
     def report(self, message, level=REPORT_INFO):
         self.lib.maps_report(message.encode('utf-8'), level)
@@ -428,15 +428,15 @@ class RTMapsAbstraction(RTMapsWrapper):
             if component_id in self._components:
                 raise RTMapsException("A component with name {} does already exist".format(component_id))
         command = "{} {}".format(component_type, component_id)
-        self._parse(command)
+        self.parse(command)
         self._components.add(component_id)
         if (xpos is not None) and (ypos is not None):
             command = "set_location {} {:d} {:d} {:d}".format(component_id, int(xpos), int(ypos), int(zpos))
-            self._parse(command)
+            self.parse(command)
     def remove_component(self, component_id: str):
         self.check_component_availability(component_id)
         command = "kill {}".format(component_id)
-        self._parse(command)
+        self.parse(command)
         self._components.remove(component_id)
     def connect_components(self, producer_id, producer_outport, consumer_id, consumer_inport):
         self.check_component_availability(producer_id)
@@ -444,7 +444,7 @@ class RTMapsAbstraction(RTMapsWrapper):
         self.check_outport_availability(producer_id, producer_outport)
         self.check_inport_availability(consumer_id, consumer_inport)
         command = "{}.{} -> {}.{}".format(producer_id, producer_outport, consumer_id, consumer_inport)
-        self._parse(command)
+        self.parse(command)
 
     def disconnect_components(self, producer_id, producer_outport, consumer_id, consumer_inport):
         self.check_component_availability(producer_id)
@@ -452,39 +452,39 @@ class RTMapsAbstraction(RTMapsWrapper):
         self.check_outport_availability(producer_id, producer_outport)
         self.check_inport_availability(consumer_id, consumer_inport)
         command = "{}.{} -X- {}.{}".format(producer_id, producer_outport, consumer_id, consumer_inport)
-        self._parse(command)
+        self.parse(command)
 
     def execute_action(self, component_id: str, action: str):
         self.check_action_availability(component_id, action)
         command = "{}.{}".format(component_id, action)
-        self._parse(command)
+        self.parse(command)
 
     def record_signal(self, producer_id, producer_outport, recorder_id, recording_method):
         self.check_component_availability(producer_id)
         self.check_outport_availability(producer_id, producer_outport)
         command = "record {}.{} in {} as {}".format(producer_id, producer_outport, recorder_id, recording_method)
-        self._parse(command)
+        self.parse(command)
 
     def set_property(self, component_id, property_name, value):
         self.check_component_availability(component_id)
         self.check_property_availability(component_id, property_name)
         self.check_enum_property_validity(component_id, property_name, value)
         command = "{}.{} = {}".format(component_id, property_name, RTMapsAbstraction.format_value(value))
-        self._parse(command)
+        self.parse(command)
     
     def set_input_property(self, component_id, input_name, property_name, value):
         self.check_component_availability(component_id)
         self.check_inport_availability(component_id, input_name)
         self.check_input_property_availability(property_name)
         command = "{}.{}.{} = {}".format(component_id, input_name, property_name, RTMapsAbstraction.format_value(value))
-        self._parse(command)
+        self.parse(command)
     
     def set_output_property(self, component_id, output_name, property_name, value):
         self.check_component_availability(component_id)
         self.check_outport_availability(component_id, output_name)
         self.check_output_property_availability(property_name)
         command = "{}.{}.{} = {}".format(component_id, output_name, property_name, RTMapsAbstraction.format_value(value))
-        self._parse(command)
+        self.parse(command)
 
     def print_rtm_script(self):
         for line in self._command_log:
@@ -500,7 +500,7 @@ class RTMapsAbstraction(RTMapsWrapper):
         command = "exportdiagramas <<{}>>".format(file_path)
         if overwrite:
             command += " overwrite"
-        self._parse(command, add_to_command_log=False)
+        self.parse(command, add_to_command_log=False)
 
     def check_action_availability(self, component_id, action):
         if self._enable_checks:
@@ -635,7 +635,7 @@ class RTMapsAbstraction(RTMapsWrapper):
         if reset: self.reset()
         with open(diagram_path) as file:
             command = "loaddiagram <<{}>>".format(diagram_path)
-            self._parse(command)
+            self.parse(command)
             for line in file:
                 line_splitted = line.strip().split()
                 # Check if line contains a component being added
@@ -647,7 +647,7 @@ class RTMapsAbstraction(RTMapsWrapper):
         namespaces = {"int":"http://schemas.intempora.com/RTMaps/2011/RTMapsFiles"}
         root = et.parse(file_path)
         command = "loaddiagram <<{}>>".format(file_path)
-        self._parse(command)
+        self.parse(command)
         for component_nodes in root.findall('int:Component', namespaces=namespaces):
             self._components.add(component_nodes.attrib["InstanceName"])
     
