@@ -1,9 +1,12 @@
-################################################################################
-# File:    rtmaps_runtime_ext.py
-# Company: dSPACE GmbH
-#
-# Copyright 2024, dSPACE GmbH. All rights reserved.
-################################################################################
+# Copyright 2025 dSPACE GmbH
+
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you must not use this software except in compliance with the License. This
+# software is not fully developed or tested. It is distributed free of charge
+# and without any consideration. The software is provided "as is" in the hope
+# that it may be useful to other users, but without any warranty of any kind,
+# either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
 
 if __name__ == "__main__":  # if called from subprocess
     from rtmaps import RTMapsAbstraction
@@ -45,7 +48,7 @@ def log(message):
 
 
 def errorIsTolerated(message):
-    """Checks if message is an error and is tolerated."""
+    """Checks if the message is an error and is tolerated."""
     return bool(
         re.search(
             "Error: component .*: (Interrupted|eof|Unable to request data!)|Error: component dSPACE_StructFilter.*|Error: Package .* already registered.*",
@@ -60,7 +63,7 @@ def errorIsToleratedInShutdown(message):
 
 
 def errorIsTimeoutError(message):
-    """Checks if message is a timeout error."""
+    """Checks if the message is a timeout error."""
     return bool(
         re.search(
             "Error: component .*: (Timeout reached before packet arrival --> shutting down|Timeout reached before all players are done --> shutting down)",
@@ -121,7 +124,7 @@ def diagramIsRunning(maps):
 
 
 def appendTimeStampToLogFile(logFile: str):
-    """Appends a current timestamp as prefix to the log file name."""
+    """Appends a current timestamp as a prefix to the log file name."""
     try:
         if logFile:
             logFile = os.path.abspath(logFile)
@@ -229,12 +232,12 @@ def cli(argList):
     description = textwrap.dedent(
         """
         This script implements an "extended" runtime wrapper to execute RTMaps diagrams and scripts.
-        The script terminates immediately, if an error occurs during diagram execution. The error 
+        The script terminates immediately if an error occurs during diagram execution. The error 
         status is returned via exit code of the process (0=success, 1=error occurred).
-        The file argument (script or diagram) is mandatory and the diagram will automatically be 
+        The file argument (script or diagram) is mandatory, and the diagram will automatically be 
         started.
         For compatibility with rtmaps_runtime.exe, the optional arguments "--run" and "--no-X11"
-        are allowed, but have no effect.
+        are allowed but have no effect.
         
         Environment variables:
           ADT_TOLERATE_RTMAPS_ERRORS  If set to "true" or "1", an error will not cause a shutdown                 

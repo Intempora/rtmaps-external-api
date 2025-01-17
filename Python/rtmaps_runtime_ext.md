@@ -9,15 +9,15 @@
 ### Get the Version
 Run the following command to get the version of 'rtmaps_runtime_ext.py':
 
-`python rtmaps_runtime_ext.py --version`
+> `python rtmaps_runtime_ext.py --version`
 
 ### Run an RTMaps Diagram or Script
 
 To run an RTMaps diagram or script, use:
 
-`python rtmaps_runtime_ext.py <file_path>`
+> `python rtmaps_runtime_ext.py <file_path>`
 
 ### Specify a Log File
-If you want to log messages during execution, specify a log file like this:
+To log messages during execution, specify a log file like this:
 
-`python rtmaps_runtime_ext.py <file_path> --logfile <log_file_path>`
+> `python rtmaps_runtime_ext.py <file_path> --logfile <log_file_path>`
