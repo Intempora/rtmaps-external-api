@@ -303,6 +303,21 @@ class RTMapsWrapper(Singleton):
         else:
             return None
 
+    def read_float64_timeout(self, name, timeout):
+        func = self.lib.maps_read_float64_timeout
+        func.argtypes = [c_char_p, c_int64, POINTER(c_double), POINTER(c_longlong)]
+        func.restype = c_int
+        
+        output_name = name.encode('utf-8')
+        output_value = c_double()
+        timestamp = c_longlong()
+        timeout_ = c_int64(int64(timeout))
+
+        result = func(output_name, timeout_, byref(output_value), byref(timestamp))
+        if result == 0:
+            return output_value.value
+        else:
+            return None
 
     def read_float64_vector_timeout_meta(self, name, vector_size, timeout):
         class vector_of_doubles(Structure):
@@ -595,6 +610,11 @@ class RTMapsAbstraction(RTMapsWrapper):
         #self.check_outport_availability(component_id, output_name)
         return super(RTMapsAbstraction, self).read_int64_timeout(f"{component_id}.{output_name}", timeout)
 
+    def read_float64_timeout(self, component_id, output_name, timeout):
+        self.check_component_availability(component_id)
+        #self.check_outport_availability(component_id, output_name)
+        return super(RTMapsAbstraction, self).read_float64_timeout(f"{component_id}.{output_name}", timeout)
+    
     def read_float64_vector(self, component_id, output_name, vector_size, wait4data):
         self.check_component_availability(component_id)
         self.check_outport_availability(component_id, output_name)
