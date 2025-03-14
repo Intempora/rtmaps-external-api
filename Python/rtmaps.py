@@ -392,9 +392,9 @@ class RTMapsWrapper(Singleton):
         result = func(output_name, timeout_, text_buffer_type, byref(dataSize), byref(meta))
         if result == 0:
             text = text_buffer_type.value.decode('utf-8')
-            return text, dataSize.value
+            return text
         else:
-            return None, result
+            return None
 
     def read_stream8_timeout_meta(self, component_dot_output, timeout, buffer_size = 1024):
         func = self.lib.maps_read_stream8_timeout_meta
@@ -411,9 +411,9 @@ class RTMapsWrapper(Singleton):
 
         result = func(output_name, timeout_, buffer, byref(dataSize), byref(meta))
         if result == 0:
-            return bytes(buffer[:dataSize.value]), dataSize.value
+            return bytes(buffer[:dataSize.value])
         else:
-            return None, result
+            return None
 
     def get_action_names_for_component(self, component):
         size = c_int()
