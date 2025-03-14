@@ -319,6 +319,27 @@ class RTMapsWrapper(Singleton):
         else:
             return None
 
+    def read_text_timeout(self, component_dot_output, timeout, text_buffer_size=1024):
+        func = self.lib.maps_read_text_timeout
+        func.argtypes = [c_char_p, c_int64, c_char_p, POINTER(c_int), POINTER(c_int64)]
+        func.restype = c_int
+
+        text_buffer = create_string_buffer(text_buffer_size)
+
+        output_name = component_dot_output.encode("utf-8")
+        timeout_ = c_int64(int64(timeout))
+        dataSize = c_int(text_buffer_size)
+        timestamp = c_int64()
+
+        result = func(
+            output_name, timeout_, text_buffer, byref(dataSize), byref(timestamp)
+        )
+        if result == 0:
+            text = text_buffer.value.decode("utf-8")
+            return text
+        else:
+            return None
+
     def read_float64_vector_timeout_meta(self, name, vector_size, timeout):
         class vector_of_doubles(Structure):
             _fields_ = [(f"elem{i}", c_double) for i in range(vector_size)] # vector type is dynamically created based on parameter vector_size
@@ -374,25 +395,6 @@ class RTMapsWrapper(Singleton):
         result = func(output_name, timeout_, byref(buffer), byref(dataSize), byref(meta))
         if result == 0:
             return [custom_structure_type.from_buffer(buffer, i * sizeof(custom_structure_type)) for i in range(vector_size)]
-        else:
-            return None
-
-    def read_text_timeout(self, component_dot_output, timeout, text_buffer_size = 1024):
-        func = self.lib.maps_read_text_timeout
-        func.argtypes = [c_char_p, c_int64, c_char_p, POINTER(c_int), POINTER(c_int64)]
-        func.restype = c_int
-        
-        text_buffer = create_string_buffer(text_buffer_size)
-
-        output_name = component_dot_output.encode('utf-8')
-        timeout_ = c_int64(int64(timeout))
-        dataSize = c_int(text_buffer_size)
-        timestamp = c_int64()
-
-        result = func(output_name, timeout_, text_buffer, byref(dataSize), byref(timestamp))
-        if result == 0:
-            text = text_buffer.value.decode('utf-8')
-            return text
         else:
             return None
 
