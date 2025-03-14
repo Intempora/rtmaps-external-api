@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 import time
 import xml.etree.ElementTree as et
-from ctypes import Structure, POINTER, c_double, c_int32, c_int64, c_uint32, c_int8, sizeof
+from ctypes import Structure, POINTER, c_ubyte, c_double, c_int32, c_int64, c_uint32, c_int8, sizeof
 from ctypes import byref, create_string_buffer, cdll
 from ctypes import c_void_p, c_char_p
 from ctypes import c_int, c_long, c_longlong, c_double
@@ -319,6 +319,27 @@ class RTMapsWrapper(Singleton):
         else:
             return None
 
+    def read_text_timeout(self, component_dot_output, timeout, text_buffer_size=1024):
+        func = self.lib.maps_read_text_timeout
+        func.argtypes = [c_char_p, c_int64, c_char_p, POINTER(c_int), POINTER(c_int64)]
+        func.restype = c_int
+
+        text_buffer = create_string_buffer(text_buffer_size)
+
+        output_name = component_dot_output.encode("utf-8")
+        timeout_ = c_int64(int64(timeout))
+        dataSize = c_int(text_buffer_size)
+        timestamp = c_int64()
+
+        result = func(
+            output_name, timeout_, text_buffer, byref(dataSize), byref(timestamp)
+        )
+        if result == 0:
+            text = text_buffer.value.decode("utf-8")
+            return text
+        else:
+            return None
+
     def read_float64_vector_timeout_meta(self, name, vector_size, timeout):
         class vector_of_doubles(Structure):
             _fields_ = [(f"elem{i}", c_double) for i in range(vector_size)] # vector type is dynamically created based on parameter vector_size
@@ -377,6 +398,24 @@ class RTMapsWrapper(Singleton):
         else:
             return None
 
+    def read_stream8_timeout_meta(self, component_dot_output, timeout, buffer_size = 1024):
+        func = self.lib.maps_read_stream8_timeout_meta
+        func.argtypes = [c_char_p, c_int64, POINTER(c_ubyte), POINTER(c_int), POINTER(maps_ioelt_metadata_t)]
+        func.restype = c_int
+        
+        buffer_type = c_ubyte * buffer_size
+        buffer = buffer_type()
+
+        output_name = component_dot_output.encode('utf-8')
+        timeout_ = c_int64(int64(timeout))
+        dataSize = c_int(buffer_size)
+        meta = maps_ioelt_metadata_t()
+
+        result = func(output_name, timeout_, buffer, byref(dataSize), byref(meta))
+        if result == 0:
+            return bytes(buffer[:dataSize.value])
+        else:
+            return None
 
     def get_action_names_for_component(self, component):
         size = c_int()
