@@ -379,19 +379,19 @@ class RTMapsWrapper(Singleton):
 
     def read_text_timeout(self, component_dot_output, timeout, text_buffer_size = 1024):
         func = self.lib.maps_read_text_timeout
-        func.argtypes = [c_char_p, c_int64, c_char_p, POINTER(c_int), POINTER(maps_ioelt_metadata_t)]
+        func.argtypes = [c_char_p, c_int64, c_char_p, POINTER(c_int), POINTER(c_int64)]
         func.restype = c_int
         
-        text_buffer_type = create_string_buffer(text_buffer_size)
+        text_buffer = create_string_buffer(text_buffer_size)
 
         output_name = component_dot_output.encode('utf-8')
         timeout_ = c_int64(int64(timeout))
         dataSize = c_int(text_buffer_size)
-        meta = maps_ioelt_metadata_t()
+        timestamp = c_int64()
 
-        result = func(output_name, timeout_, text_buffer_type, byref(dataSize), byref(meta))
+        result = func(output_name, timeout_, text_buffer, byref(dataSize), byref(timestamp))
         if result == 0:
-            text = text_buffer_type.value.decode('utf-8')
+            text = text_buffer.value.decode('utf-8')
             return text
         else:
             return None
