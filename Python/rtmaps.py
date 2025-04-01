@@ -10,10 +10,10 @@ import logging
 from pathlib import Path
 import time
 import xml.etree.ElementTree as et
-from ctypes import Structure, POINTER, c_ubyte, c_double, c_int32, c_int64, c_uint32, c_int8, sizeof
+from ctypes import Structure, POINTER, c_ubyte, c_double, c_int32, c_int64, c_uint32, c_int8, sizeof, c_uint64
 from ctypes import byref, create_string_buffer, cdll
 from ctypes import c_void_p, c_char_p
-from ctypes import c_int, c_long, c_longlong, c_double
+from ctypes import c_int, c_long, c_longlong, c_bool
 
 from numpy import int64
 if sys.platform == "win32":
@@ -731,3 +731,256 @@ def stdReportReader(dummy, level, message):
     message=message.decode('utf-8')
     print("[RTMaps] {}".format(message))
 
+class RTMapsDaemonWrapper(Singleton):
+    """
+    A very basic wrapper to interact with rtmaps_daemon. It is intended as a direct interface
+    to the underlying librcontrol_rtag.so/rcontrol_rtag.dll.
+    Some features require an RTag licence.
+    """
+    REPORT_INFO = 0
+    REPORT_WARNING = 1
+    REPORT_ERROR = 2
+
+    def __init__(self):
+
+        if sys.platform == "linux" or sys.platform == "linux2":
+            self.rtmaps_install_path = "/opt/rtmaps"
+            rtmaps_library_filename = os.path.join(self.rtmaps_install_path, "lib", "librcontrol_rtag.so")
+        elif sys.platform == "win32":
+            self.rtmaps_install_path = os.environ.get(RTMapsDefaults.rtmaps_install_variable)
+            rtmaps_library_filename = os.path.join(self.rtmaps_install_path, "bin", "rcontrol_rtag.dll")
+            os.environ['PATH'] = os.path.join(self.rtmaps_install_path, "bin") + os.pathsep + os.environ['PATH']
+        else:
+            raise AssertionError("Platform '{}' not supported by RTMapsPlugin.".format(sys.platform))
+
+        try:
+            self.lib = cdll.LoadLibrary(rtmaps_library_filename)
+            func = self.lib.rcontrol_rtag_daemon_create
+            func.restype = c_void_p
+            self.daemon = func()
+
+        except:
+            logging.error("Failed to load RTMaps library. "
+                          "Please check environment variable '{}'!".format(RTMapsDefaults.rtmaps_install_variable))
+            self.lib = None
+            raise
+
+        if sys.platform == "win32":
+            self.CALLBACKTYPE = WINFUNCTYPE(None, c_uint32, c_void_p)
+        else:
+            self.CALLBACKTYPE = CFUNCTYPE(None, c_uint32, c_void_p)
+        self.decoratedcb = self.CALLBACKTYPE(progress_cb)
+
+        self._is_connected = False
+
+    def __del__(self):
+        pass # ?
+
+    def connect(self, host : str, port : int, user : str, password : str):
+        func = self.lib.rcontrol_rtag_daemon_connect
+        func.argtypes = [c_void_p, c_char_p, c_int, c_char_p, c_char_p, self.CALLBACKTYPE, c_void_p]
+        ret_code = func(self.daemon, host.encode(), c_int(port), user.encode(), password.encode(), self.decoratedcb,
+                        self.decoratedcb)
+        self._is_connected = ret_code == 1  # Success
+        return self._is_connected
+
+    def wait_for_disconnection(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_daemon_wait_for_disconnection
+            func.argtypes = [c_void_p]
+            func(self.daemon)
+            self._is_connected = False
+
+    def delete_engine_from_name(self, engine_name : str):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_delete_from_name
+            func.argtypes = [c_void_p, c_char_p]
+            return func(self.daemon, engine_name.encode())
+        return -1
+
+    def delete_all_engines(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_delete_all_engines
+            func.argtypes = [c_void_p]
+            return func(self.daemon)
+        return -1
+
+    def create_engine(self, diagram_name : str, diagram_path : str, x11 = False):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_create
+            func.argtypes = [c_void_p, c_char_p, c_char_p, c_bool]
+            func.restype = c_void_p
+            return RTMapsEngineWrapper(func(self.daemon, diagram_name.encode(), diagram_path.encode(), x11), self.lib, diagram_name, diagram_path)
+        return False
+
+class RTMapsEngineWrapper:
+    def __init__(self, engine_handle : c_void_p, rcontrol_rtag_lib, diagram_name : str, diagram_path : str):
+        self.engine = engine_handle
+        self.lib = rcontrol_rtag_lib
+        self.diagram_name = diagram_name
+        self.diagram_path = diagram_path
+
+        if sys.platform == "win32":
+            self.CALLBACKTYPE = WINFUNCTYPE(None, c_uint32, c_void_p)
+        else:
+            self.CALLBACKTYPE = CFUNCTYPE(None, c_uint32, c_void_p)
+        self.decoratedcb = self.CALLBACKTYPE(progress_cb)
+
+        self._is_connected = False
+        self._command_log = list()
+
+
+    def connect(self, port : int):
+        func = self.lib.rcontrol_rtag_engine_connect
+        func.argtypes = [c_void_p, c_int, c_char_p, c_char_p, self.CALLBACKTYPE, c_void_p]
+        ret_code = func(self.engine, c_int(port), self.diagram_name.encode(), self.diagram_path.encode(), self.decoratedcb,
+                        self.decoratedcb)
+        self._is_connected = ret_code == 1  # Success
+        return self._is_connected
+
+    def disconnect(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_disconnect
+            func.argtypes = [c_void_p]
+            return func(self.engine)
+        return -1
+
+    def is_running(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_is_running
+            func.argtypes = [c_void_p]
+            func.restype = c_bool
+            return func(self.engine)
+        return False
+
+    def run(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_run
+            func.argtypes = [c_void_p]
+            func.restype = c_bool
+            return func(self.engine)
+        return False
+
+    def shutdown(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_shutdown
+            func.argtypes = [c_void_p]
+            func.restype = c_bool
+            return func(self.engine)
+        return False
+
+    def power_off(self):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_power_off
+            func.argtypes = [c_void_p]
+            func.restype = c_bool
+            return func(self.engine)
+        return False
+
+    """
+    Wait for power_off
+    timeout_sec: unsigned integer, 0 for blocking
+    """
+    def wait_for_power_off(self, timeout_sec : int):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_wait_for_power_off
+            func.argtypes = [c_void_p, c_uint32]
+            func.restype = c_bool
+            return func(self.engine)
+        return False
+
+    """
+    Wait for disconnection
+    timeout_sec: unsigned integer, 0 for blocking
+    """
+    def wait_for_disconnection(self, timeout_sec : int):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_wait_for_disconnection
+            func.argtypes = [c_void_p, c_uint32]
+            func.restype = c_bool
+            return func(self.engine)
+        return False
+
+    def parse(self, command):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_execute
+            func.argtypes = [c_void_p, c_char_p]
+            func.restype = c_bool
+            response = func(self.engine, command.encode('utf-8'))
+            if not response:
+                raise RTMapsException("Error while parsing command '{}'".format(command))
+            else:
+                self._command_log.append(command)
+
+    def print_rtm_script(self):
+        for line in self._command_log:
+            print(line)
+
+    def write_rtm_script(self, path, overwrite=True):
+        if not overwrite and os.path.isfile(path):
+            raise RTMapsException("File {} already exists".format(path))
+        with open(path, 'w') as file:
+            for line in self._command_log:
+                print(line, file=file)
+
+    def get_string_property(self, property_full_name : str):
+        buffer = create_string_buffer(256)
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_get_string_property
+            func.argtypes = [c_void_p, c_char_p, c_char_p, c_uint64]
+            func.restype = c_bool
+            response = func(self.engine, property_full_name.encode(), buffer, c_uint64(256))
+            if not response:
+                raise RTMapsException("Error while getting property '{}'".format(property_full_name))
+        return buffer.value.decode('utf-8')
+
+    # Can only get single values (will fail on vectorized outputs)
+    def get_integer_value(self, value_full_name : str):
+        value = c_long()
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_get_integer_value
+            func.argtypes = [c_void_p, c_char_p, POINTER(c_long)]
+            func.restype = c_bool
+            response = func(self.engine, value_full_name.encode(), byref(value))
+            if not response:
+                raise RTMapsException("Error while getting value '{}'".format(value_full_name))
+        return value.value
+
+    # Can only get single values (will fail on vectorized outputs)
+    def get_float_value(self, value_full_name : str):
+        value = c_double()
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_get_float_value
+            func.argtypes = [c_void_p, c_char_p, POINTER(c_double)]
+            func.restype = c_bool
+            response = func(self.engine, value_full_name.encode(), byref(value))
+            if not response:
+                raise RTMapsException("Error while getting value '{}'".format(value_full_name))
+        return value.value
+
+    def set_property(self, property_full_name, value):
+        command = "{} = {}".format(property_full_name, RTMapsAbstraction.format_value(value))
+        self.parse(command)
+
+    def send_integer_value(self, value_full_name : str, value : int):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_send_integer_value
+            func.argtypes = [c_void_p, c_char_p, c_long]
+            func.restype = c_bool
+            response = func(self.engine, value_full_name.encode(), c_long(value))
+            if not response:
+                raise RTMapsException("Error while sending value '{}'".format(value_full_name))
+        return True
+
+    def send_float_value(self, value_full_name : str, value : int):
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_send_float_value
+            func.argtypes = [c_void_p, c_char_p, c_double]
+            func.restype = c_bool
+            response = func(self.engine, value_full_name.encode(), c_double(value))
+            if not response:
+                raise RTMapsException("Error while sending value '{}'".format(value_full_name))
+        return True
+
+def progress_cb(percentage, userdata):
+    pass
