@@ -886,7 +886,7 @@ class RTMapsEngineWrapper:
             func = self.lib.rcontrol_rtag_engine_wait_for_power_off
             func.argtypes = [c_void_p, c_uint32]
             func.restype = c_bool
-            return func(self.engine)
+            return func(self.engine, c_uint32(timeout_sec))
         return False
 
     """
@@ -898,7 +898,7 @@ class RTMapsEngineWrapper:
             func = self.lib.rcontrol_rtag_engine_wait_for_disconnection
             func.argtypes = [c_void_p, c_uint32]
             func.restype = c_bool
-            return func(self.engine)
+            return func(self.engine, c_uint32(timeout_sec))
         return False
 
     def parse(self, command):
@@ -933,6 +933,17 @@ class RTMapsEngineWrapper:
             if not response:
                 raise RTMapsException("Error while getting property '{}'".format(property_full_name))
         return buffer.value.decode('utf-8')
+
+    def get_bool_property(self, property_full_name : str):
+        value = c_bool()
+        if self.lib and self._is_connected:
+            func = self.lib.rcontrol_rtag_engine_get_bool_property
+            func.argtypes = [c_void_p, c_char_p, POINTER(c_bool)]
+            func.restype = c_bool
+            response = func(self.engine, property_full_name.encode(), byref(value))
+            if not response:
+                raise RTMapsException("Error while getting property '{}'".format(property_full_name))
+        return value.value
 
     # Can only get single values (will fail on vectorized outputs)
     def get_integer_value(self, value_full_name : str):
