@@ -11,10 +11,12 @@ from pathlib import Path
 import re
 import time
 import xml.etree.ElementTree as et
-from ctypes import Structure, POINTER, c_ubyte, c_double, c_int32, c_int64, c_uint32, c_int8, sizeof, c_bool
-from ctypes import byref, create_string_buffer, cdll
-from ctypes import c_void_p, c_char_p
-from ctypes import c_int, c_double
+from ctypes import (
+    Structure, CDLL, 
+    c_double, c_int64, c_int32, c_uint32, c_int, c_int8, c_ubyte, c_bool, c_void_p, c_char_p,
+    POINTER, sizeof, byref, create_string_buffer,
+    cdll, 
+)
 
 from numpy import int64
 if sys.platform == "win32":
@@ -495,6 +497,15 @@ class RTMapsAbstraction(RTMapsWrapper):
             super(RTMapsAbstraction, self).__init__("--console", x11_option, *args)
         elif sys.platform == "win32":
             super(RTMapsAbstraction, self).__init__("--console", *args)
+        self._inject_environ()
+
+    def _inject_environ(self):
+        c_environ = c_void_p.in_dll(CDLL(None), "environ")
+        try:
+            c_rtmaps_environ = c_void_p.in_dll(self.lib, "environ")
+            c_rtmaps_environ.value = c_environ.value
+        except ValueError:
+            logging.warning("Failed to inject 'environ' into the rtmaps environment!")
 
     def _add_component_internal(self, component_type: str, component_id: str):
         self._components.add(component_id)
